@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pickle
 
-predict_len = 120
-input_size = 240
+predict_len = 5
+input_size = 15
 epchos = 10
 
 factor_names = ['temprature', 'ph', 'do', 'conductivity', 'permanganate', 'nh3n', 'tp', 'tn', 'turbidity', ]
