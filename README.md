@@ -1,3 +1,4 @@
+# 环境
 - keras 和 Tensorflow
   - 安装教程：https://www.tensorflow.org/install
 - numpy： https://www.numpy.org.cn/
@@ -7,6 +8,7 @@
 本次所使用的python解释器是 Python 3.6.8  
 所有所需要的依赖已放在 requirements 文件中，执行`python -m pip install -r requirements`  
 
+# 概念
 - 优化器，用于更新权重向量
   - 用于确定权重空间，优化器需要使得损失函数最小化
   - 常用的优化器
@@ -27,3 +29,9 @@
     - 卷积神经网络：适合图片识别  
     - 对抗神经网络：适合自主创作  
     - RNN循环神经网络：适合时间序列带有记忆类的问题  
+
+
+# 数据处理  
+>![](./markdown_data/a.png)
+>![](./markdown_data/b.png)
+

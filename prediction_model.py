@@ -8,19 +8,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pickle
 
-predict_len = 7
-
-
-def dict_fetchall(cursor):
-    columns = [col[0] for col in cursor.description]
-    ans = []
-    for row in cursor.fetchall():
-        m = dict()
-        for i in range(len(row)):
-            m[columns[i]] = str(row[i])
-        ans.append(m)
-    return ans
-
+predict_len = 120
+input_size = 240
+epchos = 10
 
 factor_names = ['temprature', 'ph', 'do', 'conductivity', 'permanganate', 'nh3n', 'tp', 'tn', 'turbidity', ]
 scalars = dict({
@@ -48,76 +38,111 @@ train_x, train_y = [], []
 
 pre_i = 0
 for i in range(len(raw_data)):
-    if i + 2 * predict_len < len(raw_data):
-        it = raw_data[i: i + predict_len][factor_names]
-        nit = raw_data[i + predict_len: i + 2 * predict_len][display_factor_names]
+    if i + input_size + predict_len < len(raw_data):
+        it = raw_data[i: i + input_size][factor_names]
+        nit = raw_data[i + input_size: i + input_size + predict_len][display_factor_names]
         train_x.append(it.values.tolist())
         train_y.append(nit.values.flatten().tolist())
     else:
         break
 
 all_x, all_y = abs(np.array(train_x, dtype='float32')), abs(np.array(train_y, dtype='float32'))
-train_x, train_y = all_x[:int(len(all_x) * 0.9)], all_y[:int(len(all_x) * 0.9)]
-test_x, test_y = all_x[int(len(all_x) * 0.9):], all_y[int(len(all_x) * 0.9):]
+train_x, train_y = all_x[:int(len(all_x) * 0.9)], all_y[:int(len(all_y) * 0.9)]
+t_x, t_y = all_x[int(len(all_x) * 0.9):], all_y[int(len(all_y) * 0.9):]
+val_x, val_y = t_x[:int(len(t_x) * 0.6)], t_y[:int(len(t_y) * 0.6)]
+test_x, test_y = t_x[int(len(t_x) * 0.6):], t_y[int(len(t_y) * 0.6):]
+
 
 model = Sequential()
-model.add(LSTM(128,  activation='relu', input_shape=(train_x.shape[1], train_x.shape[2]), return_sequences=True))
+model.add(LSTM(128, activation='relu', input_shape=(train_x.shape[1], train_x.shape[2]), return_sequences=True))
 model.add(LSTM(64))
 model.add(Dense(50))
 model.add(Dropout(0.3))
 model.add(Dense(len(display_factor_names) * predict_len))
 model.compile(loss='mean_squared_error', optimizer=Adam(lr=0.0001, amsgrad=True), metrics=['mse'])
-epchos = 10
-history = model.fit(train_x, train_y, epochs=epchos, batch_size=predict_len, validation_data=(test_x, test_y), verbose=1, )
+history = model.fit(train_x, train_y, epochs=epchos, batch_size=predict_len, validation_data=(test_x, test_y),
+                    verbose=1, ).history
 model.save("data/model.h5")
 
 with open('data/history.txt', 'wb') as ft:
-    pickle.dump(history.history, ft)
+    pickle.dump(history, ft)
+
 
 # model = load_model("data/model.h5")
+# with open('data/history.txt', 'rb') as ft:
+#     history = pickle.load(ft)
 
 plt.figure(1)
-plt.plot(range(epchos), history.history['mse'])
+plt.plot(range(epchos), history['mse'])
 plt.title('mse')
 
-test_predict_y = model.predict(test_x)
+test_predict_y = model.predict(val_x)
 
 plt.figure(2)
 
-real = test_y.reshape((test_y.shape[0], predict_len, len(display_factor_names)))[0]
-prediction = test_predict_y.reshape((test_predict_y.shape[0], predict_len, len(display_factor_names)))[0]
+real = val_y.reshape((val_y.shape[0], predict_len, len(display_factor_names)))
+prediction = test_predict_y.reshape((test_predict_y.shape[0], predict_len, len(display_factor_names)))
 for i, factor_name in enumerate(display_factor_names):
+    from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+
     plt.subplot(1, len(display_factor_names), i + 1)
-
+    ax = plt.gca()
     if factor_name == 'permanganate':
-        from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-
-        ax = plt.gca()
         ax.set_ylim(0, 20)
         ax.yaxis.set_major_locator(MultipleLocator(1))
         # ax.yaxis.set_minor_formatter(FormatStrFormatter('%0.2f'))
         # ax.yaxis.set_minor_locator(MultipleLocator(0.1))
     elif factor_name == 'nh3n':
-        from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-
-        ax = plt.gca()
         ax.set_ylim(0, 1)
         ax.yaxis.set_major_locator(MultipleLocator(1))
         ax.yaxis.set_minor_formatter(FormatStrFormatter('%0.2f'))
         ax.yaxis.set_minor_locator(MultipleLocator(0.2))
     else:
-        from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-
-        ax = plt.gca()
         ax.set_ylim(0, 1)
         ax.yaxis.set_major_locator(MultipleLocator(1))
         ax.yaxis.set_minor_formatter(FormatStrFormatter('%0.2f'))
         ax.yaxis.set_minor_locator(MultipleLocator(0.1))
 
-    plt.plot(range(predict_len), [j[i] * scalars[factor_name] for j in prediction],
+    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+
+    plt.plot(range(predict_len), [j[i] * scalars[factor_name] for j in prediction[0]],
              label=f"predict",
              color="red")
-    plt.plot(range(predict_len), [j[i] * scalars[factor_name] for j in real],
+    plt.plot(range(predict_len), [j[i] * scalars[factor_name] for j in real[0]],
+             label=f"real")
+    plt.legend()
+    plt.title(f"{factor_name}")
+
+plt.figure(3)
+for i, factor_name in enumerate(display_factor_names):
+    from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+
+    plt.subplot(len(display_factor_names), 1, i + 1)
+    ax = plt.gca()
+    if factor_name == 'permanganate':
+        ax.set_ylim(0, 20)
+        ax.yaxis.set_major_locator(MultipleLocator(1))
+        # ax.yaxis.set_minor_formatter(FormatStrFormatter('%0.2f'))
+        # ax.yaxis.set_minor_locator(MultipleLocator(0.1))
+    elif factor_name == 'nh3n':
+        ax.set_ylim(0, 1)
+        ax.yaxis.set_major_locator(MultipleLocator(1))
+        ax.yaxis.set_minor_formatter(FormatStrFormatter('%0.2f'))
+        ax.yaxis.set_minor_locator(MultipleLocator(0.2))
+    else:
+        ax.set_ylim(0, 1)
+        ax.yaxis.set_major_locator(MultipleLocator(1))
+        ax.yaxis.set_minor_formatter(FormatStrFormatter('%0.2f'))
+        ax.yaxis.set_minor_locator(MultipleLocator(0.1))
+
+    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+
+    plt.plot(range(len(prediction)), [j[0][i] * scalars[factor_name] for j in prediction],
+             label=f"predict",
+             color="red")
+    plt.plot(range(len(real)), [j[0][i] * scalars[factor_name] for j in real],
              label=f"real")
     plt.legend()
     plt.title(f"{factor_name}")
