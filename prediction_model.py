@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pickle
 
-predict_len = 5
+predict_len = 7
 input_size = 15
-epchos = 10
+epchos = 50
 
 factor_names = ['temprature', 'ph', 'do', 'conductivity', 'permanganate', 'nh3n', 'tp', 'tn', 'turbidity', ]
 scalars = dict({
@@ -60,6 +60,7 @@ model.add(Dense(50))
 model.add(Dropout(0.3))
 model.add(Dense(len(display_factor_names) * predict_len))
 model.compile(loss='mean_squared_error', optimizer=Adam(lr=0.0001, amsgrad=True), metrics=['mse'])
+model.summary()
 history = model.fit(train_x, train_y, epochs=epchos, batch_size=predict_len, validation_data=(test_x, test_y),
                     verbose=1, ).history
 model.save("data/model.h5")
