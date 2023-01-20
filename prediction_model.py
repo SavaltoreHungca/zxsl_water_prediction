@@ -2,15 +2,22 @@ from tensorflow.keras.optimizers import Adam
 from keras.models import Sequential
 from keras.layers import Dense, Activation
 from keras.layers import LSTM, Dropout
+from tensorflow.keras.callbacks import TensorBoard
 from keras.models import load_model
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import pickle
+import time
 
+re_train = False
 predict_len = 7
 input_size = 15
-epchos = 50
+epchos = 10
+
+
+model_name = "water-quality-prediction-{}".format(int(time.time()))
+tensorboard = TensorBoard(log_dir='./logs/{}'.format(model_name))
 
 factor_names = ['temprature', 'ph', 'do', 'conductivity', 'permanganate', 'nh3n', 'tp', 'tn', 'turbidity', ]
 scalars = dict({
@@ -52,26 +59,25 @@ t_x, t_y = all_x[int(len(all_x) * 0.9):], all_y[int(len(all_y) * 0.9):]
 val_x, val_y = t_x[:int(len(t_x) * 0.6)], t_y[:int(len(t_y) * 0.6)]
 test_x, test_y = t_x[int(len(t_x) * 0.6):], t_y[int(len(t_y) * 0.6):]
 
+if re_train:
+    model = Sequential()
+    model.add(LSTM(128, activation='relu', input_shape=(train_x.shape[1], train_x.shape[2]), return_sequences=True))
+    model.add(LSTM(64))
+    model.add(Dense(50))
+    model.add(Dropout(0.3))
+    model.add(Dense(len(display_factor_names) * predict_len))
+    model.compile(loss='mean_squared_error', optimizer=Adam(lr=0.0001, amsgrad=True), metrics=['mse'])
+    model.summary()
+    history = model.fit(train_x, train_y, epochs=epchos, batch_size=predict_len, validation_data=(test_x, test_y),
+                        verbose=1, callbacks=[tensorboard]).history
+    model.save("data/model.h5")
 
-model = Sequential()
-model.add(LSTM(128, activation='relu', input_shape=(train_x.shape[1], train_x.shape[2]), return_sequences=True))
-model.add(LSTM(64))
-model.add(Dense(50))
-model.add(Dropout(0.3))
-model.add(Dense(len(display_factor_names) * predict_len))
-model.compile(loss='mean_squared_error', optimizer=Adam(lr=0.0001, amsgrad=True), metrics=['mse'])
-model.summary()
-history = model.fit(train_x, train_y, epochs=epchos, batch_size=predict_len, validation_data=(test_x, test_y),
-                    verbose=1, ).history
-model.save("data/model.h5")
-
-with open('data/history.txt', 'wb') as ft:
-    pickle.dump(history, ft)
-
-
-# model = load_model("data/model.h5")
-# with open('data/history.txt', 'rb') as ft:
-#     history = pickle.load(ft)
+    with open('data/history.txt', 'wb') as ft:
+        pickle.dump(history, ft)
+else:
+    model = load_model("data/model.h5")
+    with open('data/history.txt', 'rb') as ft:
+        history = pickle.load(ft)
 
 plt.figure(1)
 plt.plot(range(epchos), history['mse'])
